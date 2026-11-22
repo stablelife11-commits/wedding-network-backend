@@ -4,6 +4,7 @@ import com.wedding.weddingnetwork.entity.Marriage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -11,7 +12,16 @@ public interface MarriageRepository extends JpaRepository<Marriage, Long> {
 
     List<Marriage> findByHusbandIdOrWifeId(Long husbandId, Long wifeId);
 
-    // Map Bounding-Box Query (Sirf screen par dikhne wale area ke pins)
+    @Query("SELECT COUNT(m) > 0 FROM Marriage m WHERE m.status = 'ACTIVE' " +
+           "AND ((m.husbandId = :p1 AND m.wifeId = :p2) OR (m.husbandId = :p2 AND m.wifeId = :p1)) " +
+           "AND (:excludeId IS NULL OR m.marriageId != :excludeId)")
+    boolean existsActiveMarriage(
+            @Param("p1") Long p1,
+            @Param("p2") Long p2,
+            @Param("excludeId") Long excludeId
+    );
+
+    // Map Bounding-Box Query (Limited to 500 records to prevent memory spikes)
     @Query(value = """
         SELECT 
             m.marriage_id AS marriageId,
@@ -28,6 +38,8 @@ public interface MarriageRepository extends JpaRepository<Marriage, Long> {
         JOIN locations l ON m.wedding_location_id = l.location_id
         WHERE l.latitude BETWEEN :minLat AND :maxLat
           AND l.longitude BETWEEN :minLng AND :maxLng
+        ORDER BY m.marriage_id ASC
+        LIMIT 500
         """, nativeQuery = true)
     List<MarriageMapPin> findMarriagesInBounds(
             @Param("minLat") BigDecimal minLat,
@@ -35,6 +47,9 @@ public interface MarriageRepository extends JpaRepository<Marriage, Long> {
             @Param("minLng") BigDecimal minLng,
             @Param("maxLng") BigDecimal maxLng
     );
+
+    @Query("SELECT m.husbandId AS husbandId, m.wifeId AS wifeId, m.status AS status FROM Marriage m")
+    List<MarriageRelationProjection> findAllRelationProjections();
 
     interface MarriageMapPin {
         Long getMarriageId();
@@ -45,5 +60,11 @@ public interface MarriageRepository extends JpaRepository<Marriage, Long> {
         String getDistrict();
         BigDecimal getLatitude();
         BigDecimal getLongitude();
+    }
+
+    interface MarriageRelationProjection {
+        Long getHusbandId();
+        Long getWifeId();
+        String getStatus();
     }
 }
