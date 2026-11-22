@@ -20,6 +20,8 @@ public class CreateLocationRequest {
 
     private String villageCity;
 
+    private String tehsil;
+
     private String district;
 
     private String state;
@@ -34,4 +36,3 @@ public class CreateLocationRequest {
 
     private String googlePlaceId;
 }
-

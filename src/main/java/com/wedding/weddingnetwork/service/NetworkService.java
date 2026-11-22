@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -110,6 +111,7 @@ public class NetworkService {
         Location location = Location.builder()
                 .placeName(req.getPlaceName().trim())
                 .villageCity(req.getVillageCity() != null ? req.getVillageCity().trim() : null)
+                .tehsil(req.getTehsil() != null ? req.getTehsil().trim() : null)
                 .district(req.getDistrict() != null ? req.getDistrict().trim() : null)
                 .state(req.getState() != null ? req.getState().trim() : "Uttar Pradesh")
                 .latitude(req.getLatitude())
@@ -125,6 +127,7 @@ public class NetworkService {
 
         location.setPlaceName(req.getPlaceName().trim());
         location.setVillageCity(req.getVillageCity() != null ? req.getVillageCity().trim() : null);
+        location.setTehsil(req.getTehsil() != null ? req.getTehsil().trim() : null);
         location.setDistrict(req.getDistrict() != null ? req.getDistrict().trim() : null);
         if (req.getState() != null) {
             location.setState(req.getState().trim());
@@ -249,6 +252,99 @@ public class NetworkService {
         result.put("childrenCount", children.size());
         result.put("children", children);
         return result;
+    }
+
+    // --- Smart Link or Create Relative ---
+
+    @Transactional
+    public Map<String, Object> linkOrCreateRelative(Long personId, LinkRelativeRequest req) {
+        Person user = getPersonById(personId);
+
+        Person relative;
+        if (req.getExistingRelativeId() != null) {
+            if (req.getExistingRelativeId().equals(personId)) {
+                throw new BadRequestException("A person cannot be linked as their own relative");
+            }
+            relative = getPersonById(req.getExistingRelativeId());
+        } else {
+            if (req.getFullName() == null || req.getFullName().trim().isEmpty()) {
+                throw new BadRequestException("Full name is required when creating a new relative");
+            }
+            String relType = req.getRelationType().toUpperCase().trim();
+            String gender;
+            if (relType.equals("FATHER") || relType.equals("BROTHER")) {
+                gender = "MALE";
+                   } else if (relType.equals("MOTHER") || relType.equals("SISTER")) {
+                 gender = "FEMALE";
+                   } else {
+                   gender = (req.getGender() != null && !req.getGender().trim().isEmpty())
+                          ? req.getGender().toUpperCase().trim()
+                         : "MALE";
+                           }
+
+                           relative = Person.builder()
+                        .fullName(req.getFullName().trim())
+                        .gender(gender)
+                          .birthYear(req.getBirthYear())
+                    .nativeLocationId(user.getNativeLocationId())
+                    .currentLocationId(user.getCurrentLocationId())
+                    .whatsappOptIn(false)
+                    .isAlive(true)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            relative = personRepository.save(relative);
+        }
+
+        String relationType = req.getRelationType().toUpperCase().trim();
+        switch (relationType) {
+            case "FATHER":
+                validateParentingAndAncestry(user.getPersonId(), relative.getPersonId(), user.getMotherId());
+                user.setFatherId(relative.getPersonId());
+                personRepository.save(user);
+                break;
+
+            case "MOTHER":
+                validateParentingAndAncestry(user.getPersonId(), user.getFatherId(), relative.getPersonId());
+                user.setMotherId(relative.getPersonId());
+                personRepository.save(user);
+                break;
+
+            case "BROTHER":
+            case "SISTER":
+            case "SIBLING":
+                if (relative.getPersonId().equals(user.getPersonId())) {
+                    throw new BadRequestException("A person cannot be their own sibling");
+                }
+                // Sync fatherId and motherId between siblings
+                if (user.getFatherId() != null && relative.getFatherId() == null) {
+                    relative.setFatherId(user.getFatherId());
+                } else if (user.getFatherId() == null && relative.getFatherId() != null) {
+                    user.setFatherId(relative.getFatherId());
+                }
+
+                if (user.getMotherId() != null && relative.getMotherId() == null) {
+                    relative.setMotherId(user.getMotherId());
+                } else if (user.getMotherId() == null && relative.getMotherId() != null) {
+                    user.setMotherId(relative.getMotherId());
+                }
+
+                // Sync hubId if available
+                if (user.getHubId() != null && relative.getHubId() == null) {
+                    relative.setHubId(user.getHubId());
+                } else if (user.getHubId() == null && relative.getHubId() != null) {
+                    user.setHubId(relative.getHubId());
+                }
+
+                personRepository.save(relative);
+                personRepository.save(user);
+                break;
+
+            default:
+                throw new BadRequestException("Unsupported relation type: " + relationType);
+        }
+
+        // Return updated tree so client can immediately redraw
+        return getPersonTree(personId);
     }
 
     // --- 2. Map Bounding-Box API (Guarded Coordinates & Capped at 500) ---

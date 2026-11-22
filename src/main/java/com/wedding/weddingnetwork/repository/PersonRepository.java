@@ -33,6 +33,7 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
                 p.birth_year AS birthYear,
                 p.gender AS gender,
                 COALESCE(l.village_city, '') AS villageCity,
+                COALESCE(l.tehsil, '') AS tehsil,
                 COALESCE(l.district, '') AS district,
                 COALESCE(l.place_name, '') AS placeName
             FROM persons p
@@ -63,6 +64,7 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
         Short getBirthYear();
         String getGender();
         String getVillageCity();
+        String getTehsil();
         String getDistrict();
         String getPlaceName();
     }

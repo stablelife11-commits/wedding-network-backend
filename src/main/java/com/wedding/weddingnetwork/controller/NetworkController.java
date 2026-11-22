@@ -33,6 +33,13 @@ public class NetworkController {
         return ResponseEntity.ok(networkService.getPersonTree(personId));
     }
 
+    @PostMapping("/person/{personId}/relative")
+    public ResponseEntity<Map<String, Object>> linkOrCreateRelative(
+            @PathVariable("personId") Long personId,
+            @Valid @RequestBody LinkRelativeRequest request) {
+        return ResponseEntity.ok(networkService.linkOrCreateRelative(personId, request));
+    }
+
     @GetMapping("/map/marriages")
     public ResponseEntity<List<MarriageRepository.MarriageMapPin>> getMarriagesInBounds(
             @RequestParam("minLat") BigDecimal minLat,

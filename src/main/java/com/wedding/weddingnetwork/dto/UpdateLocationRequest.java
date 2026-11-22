@@ -20,6 +20,8 @@ public class UpdateLocationRequest {
 
     private String villageCity;
 
+    private String tehsil;
+
     private String district;
 
     private String state;
@@ -34,4 +36,3 @@ public class UpdateLocationRequest {
 
     private String googlePlaceId;
 }
-

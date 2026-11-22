@@ -21,6 +21,7 @@ public class Location {
 
     private String placeName;
     private String villageCity;
+    private String tehsil;
     private String district;
 
     @Builder.Default
